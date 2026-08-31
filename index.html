@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survei Jumlah Siswa & Perkembangan Akademik — SMAN 4 Bandung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --green-dark:#20362B;
+    --green:#2E4A3A;
+    --green-light:#3E6350;
+    --cream:#F4EEDC;
+    --ink:#1B2A22;
+    --mustard:#D9A441;
+    --pencil:#B7472A;
+    --line: rgba(244,238,220,0.18);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--green-dark);
+    color: var(--cream);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:24px 14px 60px;
+  }
+  .app{ width:100%; max-width:480px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color: var(--mustard);
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:26px;
+    line-height:1.15;
+    margin:0 0 8px;
+  }
+  .sub{
+    font-size:14px;
+    color: rgba(244,238,220,0.75);
+    line-height:1.5;
+    margin-bottom:22px;
+  }
+
+  /* Seating chart signature element */
+  .seating{
+    background: var(--green);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px 14px;
+    margin-bottom:20px;
+  }
+  .seating-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color: rgba(244,238,220,0.65);
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .seat-grid{
+    display:grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap:7px;
+  }
+  .seat{ width:100%; aspect-ratio:1; }
+  .seat svg{ width:100%; height:100%; display:block; }
+
+  .card{
+    background: var(--green);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:22px 20px 20px;
+  }
+  .step-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color: var(--mustard);
+    margin-bottom:6px;
+  }
+  .q{
+    font-size:16px;
+    font-weight:500;
+    line-height:1.4;
+    margin-bottom:14px;
+  }
+  .hint{ font-size:12px; color:rgba(244,238,220,0.55); margin:-10px 0 14px; }
+
+  input[type="text"], input[type="number"], textarea{
+    width:100%;
+    background: var(--green-dark);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color: var(--cream);
+    padding:12px 13px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:15px;
+    outline:none;
+  }
+  input:focus, textarea:focus{ border-color: var(--mustard); }
+  textarea{ resize:vertical; min-height:70px; }
+
+  .choice-list{ display:flex; flex-direction:column; gap:8px; }
+  .choice{
+    border:1px solid var(--line);
+    background: var(--green-dark);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:14.5px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    transition: border-color .15s, background .15s;
+  }
+  .choice:hover{ border-color: rgba(217,164,65,0.5); }
+  .choice.selected{
+    border-color: var(--mustard);
+    background: rgba(217,164,65,0.14);
+  }
+  .choice .dot{
+    width:16px;height:16px;border-radius:50%;
+    border:1.5px solid rgba(244,238,220,0.5);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .choice.selected .dot{ border-color: var(--mustard); }
+  .choice.selected .dot::after{
+    content:''; width:8px;height:8px;border-radius:50%; background: var(--mustard);
+  }
+
+  .likert-row{ display:flex; gap:8px; }
+  .likert-opt{
+    flex:1;
+    border:1px solid var(--line);
+    background: var(--green-dark);
+    border-radius:10px;
+    padding:10px 4px;
+    text-align:center;
+    cursor:pointer;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .likert-opt .num{ font-size:17px; font-weight:600; display:block; }
+  .likert-opt .lbl{ font-size:9px; color:rgba(244,238,220,0.6); display:block; margin-top:3px; line-height:1.2; }
+  .likert-opt.selected{ border-color: var(--mustard); background: rgba(217,164,65,0.14); color: var(--mustard); }
+  .likert-opt.selected .lbl{ color: var(--mustard); }
+
+  .nav{ display:flex; gap:10px; margin-top:22px; }
+  button{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    border-radius:10px;
+    border:none;
+    padding:13px 18px;
+    cursor:pointer;
+  }
+  .btn-primary{ background: var(--mustard); color: var(--ink); flex:1; }
+  a.btn-primary{ display:block; text-decoration:none; text-align:center; }
+  .btn-primary:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-ghost{ background:transparent; color: var(--cream); border:1px solid var(--line); }
+  .error{ color: var(--pencil); font-size:12px; margin-top:8px; display:none; }
+
+  .footer-link{
+    text-align:center; margin-top:26px; font-size:12px;
+    color: rgba(244,238,220,0.4);
+  }
+  .footer-link a{ color: rgba(244,238,220,0.55); cursor:pointer; text-decoration:underline; }
+
+  /* Thank you */
+  .thankyou{ text-align:center; padding:30px 10px; }
+  .thankyou h1{ margin-bottom:10px; }
+
+  /* Researcher panel */
+  .panel-overlay{
+    position:fixed; inset:0; background:rgba(15,23,18,0.92);
+    display:flex; align-items:center; justify-content:center; padding:16px; z-index:50;
+  }
+  .panel{
+    background: var(--green); border:1px solid var(--line); border-radius:14px;
+    padding:22px; width:100%; max-width:420px;
+  }
+  .panel h2{ font-family:'Fraunces', serif; font-size:20px; margin:0 0 14px; }
+  .stat-row{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono', monospace; font-size:13px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .close-x{ float:right; background:none; border:none; color:var(--cream); font-size:18px; padding:2px 6px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const PASSWORD = "peneliti123"; // Rafael: ganti password ini sesuai keinginanmu
+const FORM_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe5wTH-z-Yo7sxNwxLYQM9uvHZ23cmuuFnQi7sY8NVQ6pfBYw/formResponse";
+const FORM_ENTRY_IDS = {
+  kelas: "entry.25828290",
+  jumlah_siswa: "entry.1635076643",
+  mapel_terpengaruh: "entry.672017110",
+  likert_fokus: "entry.461704681",
+  likert_paham: "entry.988645552",
+  likert_nilai: "entry.414786250",
+  likert_perhatian: "entry.1616045670",
+  dampak_utama: "entry.1638500266",
+  aspek_terganggu: "entry.476144830",
+  jumlah_ideal: "entry.1047203750",
+  cerita: "entry.1230188995"
+};
+
+const STEPS = [
+  { type:'intro' },
+  { type:'text', id:'kelas', section:'A', q:'Kelas kamu saat ini?', hint:'Contoh: XI-3 atau 11 IPA 2', required:true, placeholder:'Tulis kelasmu' },
+  { type:'number', id:'jumlah_siswa', section:'A', q:'Perkiraan jumlah siswa di kelasmu saat ini?', hint:'Isi dalam angka', required:true, placeholder:'Contoh: 36' },
+  { type:'text', id:'mapel_terpengaruh', section:'A', q:'Mata pelajaran apa yang paling terasa terpengaruh oleh jumlah siswa di kelas?', hint:'Opsional — boleh dikosongkan', required:false, placeholder:'Contoh: Matematika' },
+  { type:'likert', id:'likert_fokus', section:'B', q:'Semakin banyak siswa di kelas, semakin sulit saya fokus belajar.', required:true },
+  { type:'likert', id:'likert_paham', section:'B', q:'Saya lebih mudah memahami materi ketika jumlah siswa di kelas lebih sedikit.', required:true },
+  { type:'likert', id:'likert_nilai', section:'B', q:'Nilai/prestasi akademik saya terpengaruh oleh jumlah siswa di kelas.', required:true },
+  { type:'likert', id:'likert_perhatian', section:'B', q:'Guru lebih jarang memberi perhatian individual ketika kelas ramai.', required:true },
+  { type:'choice', id:'dampak_utama', section:'C', q:'Menurutmu, apa dampak paling terasa dari kelas yang terlalu ramai?', required:true,
+    options:['Sulit fokus','Guru kurang merata memperhatikan','Ruang gerak terbatas','Suasana bising','Lainnya'] },
+  { type:'choice', id:'aspek_terganggu', section:'C', q:'Aspek pembelajaran apa yang paling terganggu saat kelas ramai?', required:true,
+    options:['Pemahaman materi','Partisipasi diskusi','Interaksi dengan guru','Ujian dan latihan soal','Lainnya'] },
+  { type:'number', id:'jumlah_ideal', section:'C', q:'Menurutmu, berapa jumlah siswa ideal dalam satu kelas agar belajar optimal?', required:true, placeholder:'Contoh: 28' },
+  { type:'textarea', id:'cerita', section:'C', q:'Ceritakan singkat pengalamanmu ketika kelas terasa terlalu ramai — apa yang paling mengganggu?', hint:'Opsional — jawabanmu berharga untuk analisis kualitatif', required:false, placeholder:'Tulis pengalamanmu di sini...' },
+  { type:'submit' }
+];
+
+const LIKERT_LABELS = ['Sangat Tidak Setuju','Tidak Setuju','Setuju','Sangat Setuju'];
+
+let state = { stepIndex:0, answers:{}, submitting:false, done:false };
+
+function seatSVG(filled){
+  if(filled){
+    return `<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="9" rx="2" fill="#D9A441"/><rect x="6" y="4" width="12" height="8" rx="2" fill="#D9A441"/><rect x="3" y="17" width="3" height="5" rx="1" fill="#D9A441"/><rect x="18" y="17" width="3" height="5" rx="1" fill="#D9A441"/></svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="rgba(244,238,220,0.35)" stroke-width="1.4"><rect x="4" y="10" width="16" height="9" rx="2"/><rect x="6" y="4" width="12" height="8" rx="2"/><rect x="3" y="17" width="3" height="5" rx="1"/><rect x="18" y="17" width="3" height="5" rx="1"/></svg>`;
+}
+
+function renderSeatingChart(){
+  const total = STEPS.length - 2; // exclude intro & submit
+  const answerable = STEPS.filter(s => s.type !== 'intro' && s.type !== 'submit');
+  const answeredCount = answerable.filter(s => {
+    const v = state.answers[s.id];
+    return v !== undefined && v !== null && v !== '';
+  }).length;
+  const filledSeats = Math.round((answeredCount/answerable.length)*12);
+  let seats = '';
+  for(let i=0;i<12;i++){ seats += `<div class="seat">${seatSVG(i<filledSeats)}</div>`; }
+  return `
+    <div class="seating" id="seatingChart">
+      <div class="seating-label"><span>KELAS TERISI</span><span>${answeredCount}/${answerable.length} PERTANYAAN</span></div>
+      <div class="seat-grid">${seats}</div>
+    </div>`;
+}
+
+function currentStep(){ return STEPS[state.stepIndex]; }
+
+function canProceed(){
+  const s = currentStep();
+  if(s.type==='intro' || s.type==='submit') return true;
+  if(!s.required) return true;
+  const v = state.answers[s.id];
+  return v !== undefined && v !== null && v !== '';
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const s = currentStep();
+
+  if(state.done){
+    app.innerHTML = `
+      <div class="card thankyou">
+        <div class="eyebrow">HAMPIR SELESAI</div>
+        <h1>Google Form sudah dibuka di tab baru</h1>
+        <p class="sub">Semua jawabanmu sudah otomatis terisi di sana. Pastikan kamu menekan tombol <b>Submit</b> di tab Google Form itu untuk benar-benar mengirimkan jawabanmu. Kalau tab-nya tidak terbuka atau tertutup, kamu bisa buka lagi lewat tombol di bawah.</p>
+        <a class="btn-primary" href="${buildPrefillURL()}" target="_blank" rel="noopener" style="margin-top:10px;">Buka Google Form Lagi</a>
+      </div>
+      <div class="footer-link"><a onclick="openResearcherPanel()">Akses Peneliti</a></div>
+    `;
+    return;
+  }
+
+  if(s.type==='intro'){
+    app.innerHTML = `
+      <div class="eyebrow">PENELITIAN PKN — SMAN 4 BANDUNG</div>
+      <h1>Pengaruh Jumlah Siswa terhadap Perkembangan Akademik</h1>
+      <p class="sub">Survei ini terdiri dari beberapa pertanyaan singkat tentang pengalamanmu belajar di kelas. Jawabanmu bersifat anonim dan hanya digunakan untuk keperluan penelitian ini.</p>
+      ${renderSeatingChart()}
+      <div class="card">
+        <div class="q">Siap memulai?</div>
+        <div class="nav" style="margin-top:6px;">
+          <button class="btn-primary" onclick="nextStep()">Mulai Survei</button>
+        </div>
+      </div>
+      <div class="footer-link"><a onclick="openResearcherPanel()">Akses Peneliti</a></div>
+    `;
+    return;
+  }
+
+  let body = '';
+  if(s.type==='text'){
+    body = `<input type="text" placeholder="${s.placeholder||''}" value="${state.answers[s.id]||''}" oninput="updateAnswerSilently('${s.id}', this.value)" onblur="refreshSeatingChart()">`;
+  } else if(s.type==='number'){
+    body = `<input type="number" inputmode="numeric" placeholder="${s.placeholder||''}" value="${state.answers[s.id]??''}" oninput="updateAnswerSilently('${s.id}', this.value)" onblur="refreshSeatingChart()">`;
+  } else if(s.type==='textarea'){
+    body = `<textarea placeholder="${s.placeholder||''}" oninput="updateAnswerSilently('${s.id}', this.value)" onblur="refreshSeatingChart()">${state.answers[s.id]||''}</textarea>`;
+  } else if(s.type==='likert'){
+    body = `<div class="likert-row">` + [1,2,3,4].map(n => `
+      <div class="likert-opt ${state.answers[s.id]===n?'selected':''}" onclick="setAnswer('${s.id}', ${n})">
+        <span class="num">${n}</span><span class="lbl">${LIKERT_LABELS[n-1]}</span>
+      </div>`).join('') + `</div>`;
+  } else if(s.type==='choice'){
+    body = `<div class="choice-list">` + s.options.map(opt => `
+      <div class="choice ${state.answers[s.id]===opt?'selected':''}" onclick="setAnswer('${s.id}', '${opt.replace(/'/g,"\\'")}')">
+        <span class="dot"></span><span>${opt}</span>
+      </div>`).join('') + `</div>`;
+  } else if(s.type==='submit'){
+    body = `<p class="sub" style="margin-top:0;">Semua pertanyaan sudah dijawab. Tekan tombol di bawah untuk membuka Google Form (sudah terisi otomatis) di tab baru, lalu tekan <b>Submit</b> di sana untuk menyelesaikan.</p>`;
+  }
+
+  app.innerHTML = `
+    <div class="eyebrow">SURVEI JUMLAH SISWA</div>
+    ${renderSeatingChart()}
+    <div class="card">
+      ${s.section ? `<div class="step-tag">BAGIAN ${s.section}</div>` : ''}
+      ${s.q ? `<div class="q">${s.q}</div>` : ''}
+      ${s.hint ? `<div class="hint">${s.hint}</div>` : ''}
+      ${body}
+      <div class="error" id="err">Pertanyaan ini wajib diisi.</div>
+      <div class="nav">
+        ${state.stepIndex>0 ? `<button class="btn-ghost" onclick="prevStep()">Kembali</button>` : ''}
+        ${s.type==='submit'
+          ? `<a class="btn-primary" href="${buildPrefillURL()}" target="_blank" rel="noopener" onclick="markFormOpened()">Buka & Kirim di Google Form</a>`
+          : `<button class="btn-primary" onclick="nextStep()">Lanjut</button>`}
+      </div>
+    </div>
+    <div class="footer-link"><a onclick="openResearcherPanel()">Akses Peneliti</a></div>
+  `;
+}
+
+function setAnswer(id, val, skipRerender){
+  if(typeof val === 'string' && val.trim()==='') { delete state.answers[id]; }
+  else { state.answers[id] = val; }
+  if(skipRerender){
+    // intentionally no DOM update here — see updateAnswerSilently for typing
+  } else {
+    render();
+  }
+}
+
+function updateAnswerSilently(id, val){
+  if(typeof val === 'string' && val.trim()==='') { delete state.answers[id]; }
+  else { state.answers[id] = val; }
+}
+
+function refreshSeatingChart(){
+  const el = document.getElementById('seatingChart');
+  if(el) el.outerHTML = renderSeatingChart();
+}
+
+function updateSeatingOnly(){
+  refreshSeatingChart();
+}
+
+function nextStep(){
+  if(!canProceed()){
+    document.getElementById('err').style.display = 'block';
+    return;
+  }
+  if(state.stepIndex < STEPS.length-1){ state.stepIndex++; render(); window.scrollTo(0,0); }
+}
+function prevStep(){
+  if(state.stepIndex>0){ state.stepIndex--; render(); window.scrollTo(0,0); }
+}
+
+function buildPrefillURL(){
+  let url = "https://docs.google.com/forms/d/e/1FAIpQLSe5wTH-z-Yo7sxNwxLYQM9uvHZ23cmuuFnQi7sY8NVQ6pfBYw/viewform?usp=pp_url";
+  Object.keys(FORM_ENTRY_IDS).forEach(id => {
+    const val = state.answers[id];
+    if(val !== undefined && val !== null && val !== ''){
+      url += `&${FORM_ENTRY_IDS[id]}=${encodeURIComponent(val)}`;
+    }
+  });
+  return url;
+}
+
+function markFormOpened(){
+  state.done = true;
+  render();
+}
+
+function downloadAnswerFallback(){
+  const blob = new Blob([JSON.stringify(state.answers, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `jawaban_survei_${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  state.done = true;
+  state.doneFallback = true;
+  render();
+}
+
+// ---- Researcher panel ----
+function openResearcherPanel(){
+  const overlay = document.createElement('div');
+  overlay.className = 'panel-overlay';
+  overlay.id = 'panelOverlay';
+  overlay.innerHTML = `<div class="panel">
+    <button class="close-x" onclick="document.getElementById('panelOverlay').remove()">✕</button>
+    <h2>Akses Peneliti</h2>
+    <p class="hint" style="margin-top:-4px;">Masukkan password untuk melihat data.</p>
+    <input type="password" id="pwInput" placeholder="Password" style="margin-bottom:6px;">
+    <div class="error" id="pwErr" style="display:none;">Password salah.</div>
+    <div class="nav" style="margin-top:10px;">
+      <button class="btn-primary" onclick="checkPassword()">Masuk</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const pwInput = document.getElementById('pwInput');
+  pwInput.focus();
+  pwInput.addEventListener('keydown', e => { if(e.key === 'Enter') checkPassword(); });
+}
+
+async function checkPassword(){
+  const pw = document.getElementById('pwInput').value;
+  if(pw !== PASSWORD){
+    document.getElementById('pwErr').style.display = 'block';
+    return;
+  }
+  const panel = document.querySelector('#panelOverlay .panel');
+  panel.innerHTML = `
+    <button class="close-x" onclick="document.getElementById('panelOverlay').remove()">✕</button>
+    <h2>Panel Peneliti</h2>
+    <p class="sub" style="margin-top:0;">Setiap jawaban yang dikirim otomatis masuk ke tab <b>Responses</b> di Google Form kamu.</p>
+    <p class="sub">Untuk melihat sebagai spreadsheet: di tab Responses, tap ikon Sheets hijau untuk membuat/membuka Google Sheet terhubung. Untuk export ke Excel: buka Sheet itu → <b>File → Download → Microsoft Excel (.xlsx)</b>.</p>
+  `;
+}
+
+render();
+</script>
+</body>
+</html>
