@@ -201,20 +201,17 @@
 
 <script>
 const PASSWORD = "peneliti123"; // Rafael: ganti password ini sesuai keinginanmu
-const FORM_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe5wTH-z-Yo7sxNwxLYQM9uvHZ23cmuuFnQi7sY8NVQ6pfBYw/formResponse";
-const FORM_ENTRY_IDS = {
-  kelas: "entry.25828290",
-  jumlah_siswa: "entry.1635076643",
-  mapel_terpengaruh: "entry.672017110",
-  likert_fokus: "entry.461704681",
-  likert_paham: "entry.988645552",
-  likert_nilai: "entry.414786250",
-  likert_perhatian: "entry.1616045670",
-  dampak_utama: "entry.1638500266",
-  aspek_terganggu: "entry.476144830",
-  jumlah_ideal: "entry.1047203750",
-  cerita: "entry.1230188995"
-};
+
+// GANTI dengan URL Web App Google Apps Script kamu (lihat panduan deployment).
+// Contoh: "https://script.google.com/macros/s/AKfycb.../exec"
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzL8INdx21LBej6avMskRewXFkHUdtwtqRKNE3jmXpx98u8eSh6LabKrIzje7NlmVwNfg/exec";
+
+// Urutan field ini menentukan urutan kolom di Google Sheet.
+const FIELD_ORDER = [
+  "kelas", "jumlah_siswa", "mapel_terpengaruh",
+  "likert_fokus", "likert_paham", "likert_nilai", "likert_perhatian",
+  "dampak_utama", "aspek_terganggu", "jumlah_ideal", "cerita"
+];
 
 const STEPS = [
   { type:'intro' },
@@ -236,7 +233,7 @@ const STEPS = [
 
 const LIKERT_LABELS = ['Sangat Tidak Setuju','Tidak Setuju','Setuju','Sangat Setuju'];
 
-let state = { stepIndex:0, answers:{}, submitting:false, done:false };
+let state = { stepIndex:0, answers:{}, submitting:false, done:false, submitError:false };
 
 function seatSVG(filled){
   if(filled){
@@ -279,10 +276,25 @@ function render(){
   if(state.done){
     app.innerHTML = `
       <div class="card thankyou">
-        <div class="eyebrow">HAMPIR SELESAI</div>
-        <h1>Google Form sudah dibuka di tab baru</h1>
-        <p class="sub">Semua jawabanmu sudah otomatis terisi di sana. Pastikan kamu menekan tombol <b>Submit</b> di tab Google Form itu untuk benar-benar mengirimkan jawabanmu. Kalau tab-nya tidak terbuka atau tertutup, kamu bisa buka lagi lewat tombol di bawah.</p>
-        <a class="btn-primary" href="${buildPrefillURL()}" target="_blank" rel="noopener" style="margin-top:10px;">Buka Google Form Lagi</a>
+        <div class="eyebrow">TERIMA KASIH</div>
+        <h1>Jawabanmu sudah terkirim</h1>
+        <p class="sub">Data survei kamu sudah tersimpan. Tidak ada langkah lain yang perlu kamu lakukan.</p>
+      </div>
+      <div class="footer-link"><a onclick="openResearcherPanel()">Akses Peneliti</a></div>
+    `;
+    return;
+  }
+
+  if(state.submitError){
+    app.innerHTML = `
+      <div class="card thankyou">
+        <div class="eyebrow">GAGAL MENGIRIM</div>
+        <h1>Koneksi bermasalah</h1>
+        <p class="sub">Jawabanmu belum berhasil terkirim. Coba tekan tombol di bawah lagi, atau unduh jawabanmu sebagai cadangan lalu kirim manual ke gurumu.</p>
+        <div class="nav" style="margin-top:10px;">
+          <button class="btn-ghost" style="flex:1;" onclick="downloadAnswerFallback()">Unduh Cadangan</button>
+          <button class="btn-primary" onclick="submitToSheet()">Coba Lagi</button>
+        </div>
       </div>
       <div class="footer-link"><a onclick="openResearcherPanel()">Akses Peneliti</a></div>
     `;
@@ -324,7 +336,7 @@ function render(){
         <span class="dot"></span><span>${opt}</span>
       </div>`).join('') + `</div>`;
   } else if(s.type==='submit'){
-    body = `<p class="sub" style="margin-top:0;">Semua pertanyaan sudah dijawab. Tekan tombol di bawah untuk membuka Google Form (sudah terisi otomatis) di tab baru, lalu tekan <b>Submit</b> di sana untuk menyelesaikan.</p>`;
+    body = `<p class="sub" style="margin-top:0;">Semua pertanyaan sudah dijawab. Tekan tombol di bawah untuk mengirim jawabanmu.</p>`;
   }
 
   app.innerHTML = `
@@ -339,7 +351,7 @@ function render(){
       <div class="nav">
         ${state.stepIndex>0 ? `<button class="btn-ghost" onclick="prevStep()">Kembali</button>` : ''}
         ${s.type==='submit'
-          ? `<a class="btn-primary" href="${buildPrefillURL()}" target="_blank" rel="noopener" onclick="markFormOpened()">Buka & Kirim di Google Form</a>`
+          ? `<button class="btn-primary" id="submitBtn" onclick="submitToSheet()">${state.submitting ? 'Mengirim...' : 'Kirim Jawaban'}</button>`
           : `<button class="btn-primary" onclick="nextStep()">Lanjut</button>`}
       </div>
     </div>
@@ -382,20 +394,35 @@ function prevStep(){
   if(state.stepIndex>0){ state.stepIndex--; render(); window.scrollTo(0,0); }
 }
 
-function buildPrefillURL(){
-  let url = "https://docs.google.com/forms/d/e/1FAIpQLSe5wTH-z-Yo7sxNwxLYQM9uvHZ23cmuuFnQi7sY8NVQ6pfBYw/viewform?usp=pp_url";
-  Object.keys(FORM_ENTRY_IDS).forEach(id => {
-    const val = state.answers[id];
-    if(val !== undefined && val !== null && val !== ''){
-      url += `&${FORM_ENTRY_IDS[id]}=${encodeURIComponent(val)}`;
-    }
-  });
-  return url;
-}
-
-function markFormOpened(){
-  state.done = true;
+async function submitToSheet(){
+  if(state.submitting) return;
+  state.submitting = true;
+  state.submitError = false;
   render();
+
+  const params = new URLSearchParams();
+  FIELD_ORDER.forEach(id => {
+    params.append(id, state.answers[id] !== undefined && state.answers[id] !== null ? state.answers[id] : '');
+  });
+
+  try{
+    // Apps Script Web Apps tidak mengirim header CORS ke fetch cross-origin,
+    // jadi kita pakai mode 'no-cors' (fire-and-forget: respons tidak bisa dibaca,
+    // tapi request tetap sampai dan diproses oleh Apps Script).
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
+    state.submitting = false;
+    state.done = true;
+    render();
+  } catch(err){
+    state.submitting = false;
+    state.submitError = true;
+    render();
+  }
 }
 
 function downloadAnswerFallback(){
@@ -444,8 +471,8 @@ async function checkPassword(){
   panel.innerHTML = `
     <button class="close-x" onclick="document.getElementById('panelOverlay').remove()">✕</button>
     <h2>Panel Peneliti</h2>
-    <p class="sub" style="margin-top:0;">Setiap jawaban yang dikirim otomatis masuk ke tab <b>Responses</b> di Google Form kamu.</p>
-    <p class="sub">Untuk melihat sebagai spreadsheet: di tab Responses, tap ikon Sheets hijau untuk membuat/membuka Google Sheet terhubung. Untuk export ke Excel: buka Sheet itu → <b>File → Download → Microsoft Excel (.xlsx)</b>.</p>
+    <p class="sub" style="margin-top:0;">Setiap jawaban yang dikirim otomatis masuk sebagai baris baru di Google Sheet yang terhubung ke Apps Script kamu.</p>
+    <p class="sub">Untuk export ke Excel: buka Sheet itu → <b>File → Download → Microsoft Excel (.xlsx)</b>.</p>
   `;
 }
 
